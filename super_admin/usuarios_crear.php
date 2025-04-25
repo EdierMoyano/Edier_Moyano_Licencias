@@ -10,20 +10,43 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 1) {
 // Incluir archivo de conexión
 require_once '../conexion.php';
 
+// Incluir la librería de códigos de barras (asegúrate de que el path sea correcto)
+require_once '../vendor/autoload.php';
+use Picqer\Barcode\BarcodeGeneratorPNG;
+
 // Inicializar variables
 $mensaje = '';
 $tipo_mensaje = '';
 $id = '';
 $nombres = '';
 $apellidos = '';
-$codigo_barras = '';
 $email = '';
 $id_empresa = isset($_GET['empresa']) ? (int)$_GET['empresa'] : '';
 $rol = '';
 
-// Generar código de barras aleatorio de 10 dígitos
-function generarCodigoBarras() {
-    return str_pad(mt_rand(0, 9999999999), 10, '0', STR_PAD_LEFT);
+// Función para generar y guardar imagen de código de barras basado en el documento de identidad
+function generarGuardarCodigoBarras($documento) {
+    // Crear directorio si no existe
+    $directorio = '../barcode/';
+    if (!file_exists($directorio)) {
+        mkdir($directorio, 0755, true);
+    }
+    
+    // Crear generador de código de barras
+    $generator = new BarcodeGeneratorPNG();
+    
+    // Generar código de barras en formato PNG
+    $barcode = $generator->getBarcode($documento, $generator::TYPE_CODE_128, 2, 50);
+    
+    // Nombre del archivo (usando el documento como nombre)
+    $nombreArchivo =  $documento . '.png';
+    $rutaCompleta = $directorio . $nombreArchivo;
+    
+    // Guardar la imagen en el servidor
+    file_put_contents($rutaCompleta, $barcode);
+    
+    // Devolver la ruta relativa para guardar en la base de datos
+    return 'barcode/' . $nombreArchivo;
 }
 
 // Obtener empresas y roles
@@ -39,20 +62,6 @@ try {
     $stmt = $conn->query("SELECT id, nombre_rol FROM rol ORDER BY id");
     $roles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Generar código de barras único
-    $codigo_barras = generarCodigoBarras();
-    $codigo_unico = false;
-    
-    while (!$codigo_unico) {
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM usuarios WHERE codigo_barras = ?");
-        $stmt->execute([$codigo_barras]);
-        if ($stmt->fetchColumn() == 0) {
-            $codigo_unico = true;
-        } else {
-            $codigo_barras = generarCodigoBarras();
-        }
-    }
-    
 } catch (PDOException $e) {
     $mensaje = "Error al obtener datos: " . $e->getMessage();
     $tipo_mensaje = "danger";
@@ -63,7 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id = trim($_POST['id']);
     $nombres = trim($_POST['nombres']);
     $apellidos = trim($_POST['apellidos']);
-    $codigo_barras = trim($_POST['codigo_barras']);
     $email = trim($_POST['email']);
     $contraseña = trim($_POST['contraseña']);
     $confirmar_contraseña = trim($_POST['confirmar_contraseña']);
@@ -124,17 +132,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if (empty($errores)) {
         try {
-            // Encriptar contraseña
+            $ruta_codigo_barras = generarGuardarCodigoBarras($id);
+            
             $contraseña_hash = password_hash($contraseña, PASSWORD_DEFAULT);
             
-            // Insertar usuario
-            $stmt = $conn->prepare("INSERT INTO usuarios (id, nombres, apellidos, codigo_barras, email, contraseña, id_empresa, rol) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id, $nombres, $apellidos, $codigo_barras, $email, $contraseña_hash, $id_empresa, $rol]);
+            $stmt = $conn->prepare("INSERT INTO usuarios (id, nombres, apellidos, codigo_barras_ruta, email, contraseña, id_empresa, rol) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$id, $nombres, $apellidos, $ruta_codigo_barras, $email, $contraseña_hash, $id_empresa, $rol]);
             
             $mensaje = "Usuario creado correctamente.";
             $tipo_mensaje = "success";
             
-            // Redirigir a la página de ver usuario
             header("Location: usuarios_ver.php?id=$id&mensaje=creado");
             exit;
         } catch (PDOException $e) {
@@ -158,6 +165,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <style>
         .sidebar {
             min-height: calc(100vh - 56px);
+        }
+        .barcode-preview {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            text-align: center;
         }
     </style>
 </head>
@@ -267,19 +282,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label for="id" class="form-label">Documento de Identidad *</label>
-                                    <input type="text" class="form-control" id="id" name="id" value="<?php echo htmlspecialchars($id); ?>" required>
+                                    <input type="text" class="form-control" id="id" name="id" value="<?php echo htmlspecialchars($id); ?>" required onchange="mostrarVistaPrevia()">
                                     <div class="form-text">Ingrese el número de documento sin puntos ni guiones.</div>
+                                    
+                                    <!-- Vista previa del código de barras -->
+                                    <div id="barcodePreview" class="barcode-preview d-none">
+                                        <p class="mb-1">Vista previa del código de barras:</p>
+                                        <div id="barcodeImage"></div>
+                                        <small class="text-muted">Esta imagen se guardará en la carpeta 'barcode' al registrar el usuario.</small>
+                                    </div>
                                 </div>
                                 
                                 <div class="col-md-6">
-                                    <label for="codigo_barras" class="form-label">Código de Barras</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" id="codigo_barras" name="codigo_barras" value="<?php echo htmlspecialchars($codigo_barras); ?>" readonly>
-                                        <button type="button" class="btn btn-outline-secondary" onclick="generarNuevoCodigo()">
-                                            <i class="bi bi-arrow-repeat"></i> Generar nuevo
-                                        </button>
-                                    </div>
-                                    <div class="form-text">Código de barras generado automáticamente (10 dígitos).</div>
+                                    <label for="Rol" class="form-label">Rol</label>
+                                    <select class="form-select" id="rol" name="rol" required>
+                                        <option value="">Seleccione un rol</option>
+                                        <?php foreach ($roles as $r): ?>
+                                        <option value="<?php echo $r['id']; ?>" <?php echo ($rol == $r['id']) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($r['nombre_rol']); ?>
+                                        </option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </div>
                             </div>
                             
@@ -327,20 +350,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </div>
                             </div>
                             
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="rol" class="form-label">Rol *</label>
-                                    <select class="form-select" id="rol" name="rol" required>
-                                        <option value="">Seleccione un rol</option>
-                                        <?php foreach ($roles as $r): ?>
-                                        <option value="<?php echo $r['id']; ?>" <?php echo ($rol == $r['id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($r['nombre_rol']); ?>
-                                        </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-                            
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                 <a href="usuarios.php" class="btn btn-secondary me-md-2">Cancelar</a>
                                 <button type="submit" class="btn btn-primary">Guardar Usuario</button>
@@ -353,15 +362,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script>
-        function generarNuevoCodigo() {
-            // Generar un código aleatorio de 10 dígitos
-            let codigo = '';
-            for (let i = 0; i < 10; i++) {
-                codigo += Math.floor(Math.random() * 10);
+        function mostrarVistaPrevia() {
+            const documento = document.getElementById('id').value;
+            if (documento) {
+                // Mostrar el contenedor de vista previa
+                const previewDiv = document.getElementById('barcodePreview');
+                previewDiv.classList.remove('d-none');
+                
+                // Crear un elemento SVG para el código de barras
+                const barcodeContainer = document.getElementById('barcodeImage');
+                barcodeContainer.innerHTML = '<svg id="barcode"></svg>';
+                
+                // Generar el código de barras usando JsBarcode
+                JsBarcode("#barcode", documento, {
+                    format: "CODE128",
+                    lineColor: "#000",
+                    width: 2,
+                    height: 50,
+                    displayValue: true
+                });
             }
-            document.getElementById('codigo_barras').value = codigo;
         }
+        
+        // Ejecutar al cargar la página si ya hay un valor
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('id').value) {
+                mostrarVistaPrevia();
+            }
+        });
     </script>
 </body>
 </html>

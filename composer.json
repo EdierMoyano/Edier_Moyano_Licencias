@@ -1,0 +1,17 @@
+{
+    "name": "edier/sistema_licencias",
+    "require": {
+        "picqer/php-barcode-generator": "^3.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Edier\\SistemaLicencias\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "EdierMoyano",
+            "email": "ediersmb@gmail.com"
+        }
+    ]
+}

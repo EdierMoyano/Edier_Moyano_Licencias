@@ -50,6 +50,10 @@ try {
     $stmt->execute([$id]);
     $total_asistencias = $stmt->fetchColumn();
     
+    // Verificar si existe la imagen del código de barras
+    $ruta_codigo_barras = '../barcode/' . $id . '.png';
+    $codigo_barras_existe = file_exists($ruta_codigo_barras);
+    
 } catch (PDOException $e) {
     $mensaje = "Error al obtener datos: " . $e->getMessage();
     $tipo_mensaje = "danger";
@@ -66,6 +70,19 @@ try {
     <style>
         .sidebar {
             min-height: calc(100vh - 56px);
+        }
+        .barcode-container {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .barcode-image {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
@@ -214,9 +231,29 @@ try {
                                                 <span class="badge bg-secondary">Usuario</span>
                                             <?php endif; ?>
                                         </p>
-                                        <p><strong>Código de Barras:</strong> <?php echo !empty($usuario['codigo_barras']) ? htmlspecialchars($usuario['codigo_barras']) : '<span class="text-muted">No asignado</span>'; ?></p>
+                                        <p><strong>Código de Barras:</strong> <?php echo $usuario['id']; ?></p>
                                     </div>
                                 </div>
+                                
+                                <!-- Sección de código de barras -->
+                                <?php if ($codigo_barras_existe): ?>
+                                <div class="barcode-container">
+                                    <h5 class="mb-3">Código de Barras del Usuario</h5>
+                                    <img src="<?php echo '../barcode/' . $id . '.png'; ?>" alt="Código de Barras" class="barcode-image">
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <a href="<?php echo '../barcode/' . $id . '.png'; ?>" class="btn btn-primary" download="codigo_barras_<?php echo $id; ?>.png">
+                                            <i class="bi bi-download"></i> Descargar
+                                        </a>
+                                        <button class="btn btn-success" onclick="imprimirCodigo()">
+                                            <i class="bi bi-printer"></i> Imprimir
+                                        </button>
+                                    </div>
+                                </div>
+                                <?php else: ?>
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i> No se encontró la imagen del código de barras para este usuario.
+                                </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -274,5 +311,56 @@ try {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function imprimirCodigo() {
+        const imgSrc = '<?php echo '../barcode/' . $id . '.png'; ?>';
+        const codigo = '<?php echo $id; ?>';
+        const nombre = '<?php echo htmlspecialchars($usuario['nombres'] . ' ' . $usuario['apellidos']); ?>';
+        
+        const ventanaImpresion = window.open('', '_blank');
+        ventanaImpresion.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Imprimir Código de Barras</title>
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding: 20px;
+                    }
+                    .codigo-container {
+                        margin: 0 auto;
+                        max-width: 300px;
+                    }
+                    img {
+                        max-width: 100%;
+                    }
+                    .info {
+                        margin-top: 10px;
+                        font-size: 14px;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="codigo-container">
+                    <h3>Código de Barras</h3>
+                    <img src="${imgSrc}" alt="Código de Barras">
+                    <div class="info">
+                        <p><strong>Código:</strong> ${codigo}</p>
+                        <p><strong>Usuario:</strong> ${nombre}</p>
+                    </div>
+                </div>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                    }
+                </script>
+            </body>
+            </html>
+        `);
+        ventanaImpresion.document.close();
+    }
+    </script>
 </body>
 </html>

@@ -53,12 +53,41 @@ try {
     $tipo_mensaje = "danger";
 }
 
-
-;
-
+// Procesar la consulta de usuario por código de barras (AJAX)
+if (isset($_POST['action']) && $_POST['action'] == 'buscar_usuario') {
+    $documento = trim($_POST['documento']);
+    
+    try {
+        $db = new Database();
+        $conn = $db->connect();
+        
+        $stmt = $conn->prepare("SELECT id, nombres, apellidos FROM usuarios WHERE id = ?");
+        $stmt->execute([$documento]);
+        
+        if ($stmt->rowCount() > 0) {
+            $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+            echo json_encode([
+                'success' => true,
+                'usuario' => $usuario
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'mensaje' => 'No se encontró ningún usuario con ese documento'
+            ]);
+        }
+        exit;
+    } catch (PDOException $e) {
+        echo json_encode([
+            'success' => false,
+            'mensaje' => 'Error al buscar usuario: ' . $e->getMessage()
+        ]);
+        exit;
+    }
+}
 
 // Procesar el formulario
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['action'])) {
     $curso_id = (int)$_POST['curso_id'];
     $nombre_usu = trim($_POST['nombre_usu']);
     $documento = trim($_POST['documento']);
@@ -130,6 +159,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <style>
         .sidebar {
             min-height: calc(100vh - 56px);
+        }
+        .scanner-container {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .scanner-container .form-label {
+            font-weight: bold;
+        }
+        .scanner-icon {
+            font-size: 1.5rem;
+            margin-right: 0.5rem;
+            color: #0d6efd;
         }
     </style>
 </head>
@@ -242,13 +286,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
                 
                 <?php if ($curso_id > 0): ?>
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-upc-scan me-1"></i> Escanear Código de Barras
+                    </div>
+                    <div class="card-body">
+                        <div class="scanner-container">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label for="codigo_escaneado" class="form-label">
+                                        <i class="bi bi-upc-scan scanner-icon"></i>Escanee el código de barras
+                                    </label>
+                                    <input type="text" class="form-control form-control-lg" id="codigo_escaneado" 
+                                           placeholder="Escanee o ingrese el documento de identidad" autofocus>
+                                    <div class="form-text">Escanee el código de barras o ingrese manualmente el documento de identidad</div>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-end">
+                                    <button type="button" id="btn_consultar" class="btn btn-primary btn-lg mt-3">
+                                        <i class="bi bi-search me-1"></i> Consultar
+                                    </button>
+                                    <div id="spinner" class="spinner-border text-primary ms-3 d-none" role="status">
+                                        <span class="visually-hidden">Cargando...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="resultado_consulta" class="mt-3"></div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Formulario de registro de asistencia -->
                 <div class="card mb-4">
                     <div class="card-header">
                         <i class="bi bi-person-plus-fill me-1"></i> Registrar Asistencia para: <?php echo htmlspecialchars($curso['nombre']); ?>
                     </div>
                     <div class="card-body">
-                        <form method="post" action="">
+                        <form method="post" action="" name="form1" id="form_asistencia">
                             <input type="hidden" name="curso_id" value="<?php echo $curso_id; ?>">
                             
                             <div class="row mb-3">
@@ -321,5 +394,103 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Enfocar el campo de escaneo al cargar la página
+            const codigoEscaneadoInput = document.getElementById('codigo_escaneado');
+            if (codigoEscaneadoInput) {
+                codigoEscaneadoInput.focus();
+            }
+            
+            // Manejar el evento de escaneo (cuando se presiona Enter después de escanear)
+            codigoEscaneadoInput?.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    consultarUsuario();
+                }
+            });
+            
+            // Manejar el clic en el botón de consultar
+            const btnConsultar = document.getElementById('btn_consultar');
+            btnConsultar?.addEventListener('click', function() {
+                consultarUsuario();
+            });
+            
+            // Función para consultar usuario por documento
+            function consultarUsuario() {
+                const codigo = codigoEscaneadoInput.value.trim();
+                if (!codigo) {
+                    mostrarResultado('error', 'Por favor ingrese o escanee un documento de identidad');
+                    return;
+                }
+                
+                // Mostrar spinner
+                document.getElementById('spinner').classList.remove('d-none');
+                document.getElementById('resultado_consulta').innerHTML = '';
+                
+                // Realizar la consulta AJAX
+                const formData = new FormData();
+                formData.append('action', 'buscar_usuario');
+                formData.append('documento', codigo);
+                
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Ocultar spinner
+                    document.getElementById('spinner').classList.add('d-none');
+                    
+                    if (data.success) {
+                        // Autocompletar el formulario
+                        document.getElementById('documento').value = data.usuario.id;
+                        document.getElementById('nombre_usu').value = data.usuario.nombres + ' ' + data.usuario.apellidos;
+                        
+                        // Mostrar mensaje de éxito
+                        mostrarResultado('success', 'Usuario encontrado. Se han completado los datos automáticamente.');
+                        
+                        // Enfocar el campo de observaciones
+                        document.getElementById('observaciones').focus();
+                    } else {
+                        // Mostrar mensaje de error
+                        mostrarResultado('error', data.mensaje);
+                        
+                        // Completar solo el campo de documento
+                        document.getElementById('documento').value = codigo;
+                        document.getElementById('nombre_usu').value = '';
+                        document.getElementById('nombre_usu').focus();
+                    }
+                })
+                .catch(error => {
+                    // Ocultar spinner
+                    document.getElementById('spinner').classList.add('d-none');
+                    mostrarResultado('error', 'Error al procesar la solicitud: ' + error);
+                });
+            }
+            
+            // Función para mostrar resultados
+            function mostrarResultado(tipo, mensaje) {
+                const resultadoDiv = document.getElementById('resultado_consulta');
+                const alertClass = tipo === 'success' ? 'alert-success' : 'alert-danger';
+                const icon = tipo === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
+                
+                resultadoDiv.innerHTML = `
+                    <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                        <i class="bi ${icon} me-2"></i> ${mensaje}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+            }
+            
+            // Limpiar el campo de escaneo después de enviar el formulario
+            const formAsistencia = document.getElementById('form_asistencia');
+            formAsistencia?.addEventListener('submit', function() {
+                if (codigoEscaneadoInput) {
+                    codigoEscaneadoInput.value = '';
+                }
+            });
+        });
+    </script>
 </body>
 </html>
