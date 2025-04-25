@@ -128,7 +128,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <i class="bi bi-person-circle"></i> <?php echo $_SESSION['user_name']; ?>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="perfil.php">Mi Perfil</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="../logout.php">Cerrar Sesión</a></li>
                         </ul>

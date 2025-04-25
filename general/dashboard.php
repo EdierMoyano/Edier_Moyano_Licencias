@@ -248,7 +248,6 @@ try {
                             <div class="card-body">
                                 <p><strong>Empresa:</strong> <?php echo $_SESSION['user_empresa']; ?></p>
                                 <p><strong>Usuario:</strong> <?php echo $_SESSION['user_name']; ?></p>
-                                <p><strong>Rol:</strong> <?php echo $_SESSION['user_role_name']; ?></p>
                                 <p><strong>Estado:</strong> <span class="badge bg-success">Licencia Activa</span></p>
                             </div>
                         </div>

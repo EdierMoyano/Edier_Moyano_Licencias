@@ -33,17 +33,17 @@ try {
     
     // Licencias próximas a expirar (en los próximos 30 días)
     $stmt = $conn->query("SELECT COUNT(*) as total FROM licencias 
-                         WHERE estado = 'Activa' 
-                         AND fecha_fin BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)");
+                        WHERE estado = 'Activa' 
+                        AND fecha_fin BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)");
     $licencias_por_expirar = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
     
     // Últimas 5 licencias asignadas
     $stmt = $conn->query("SELECT l.id, l.fecha_inicio, l.fecha_fin, l.estado, 
-                          e.nombre as empresa, tl.nombre as tipo_licencia 
-                          FROM licencias l 
-                          JOIN empresa e ON l.id_empresa = e.id 
-                          JOIN tipo_licencia tl ON l.id_tipo_licencia = tl.id 
-                          ORDER BY l.fecha_compra DESC LIMIT 5");
+                        e.nombre as empresa, tl.nombre as tipo_licencia 
+                        FROM licencias l 
+                        JOIN empresa e ON l.id_empresa = e.id 
+                        JOIN tipo_licencia tl ON l.id_tipo_licencia = tl.id 
+                        ORDER BY l.fecha_compra DESC LIMIT 5");
     $ultimas_licencias = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Últimas 5 empresas registradas
@@ -104,7 +104,6 @@ try {
                             <i class="bi bi-person-circle"></i> <?php echo $_SESSION['user_name']; ?>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="perfil.php">Mi Perfil</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="../logout.php">Cerrar Sesión</a></li>
                         </ul>

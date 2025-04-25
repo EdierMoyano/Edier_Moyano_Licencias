@@ -126,7 +126,6 @@ if (isset($_GET['cambiar_estado']) && !empty($_GET['cambiar_estado'])) {
                             <i class="bi bi-person-circle"></i> <?php echo $_SESSION['user_name']; ?>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="perfil.php">Mi Perfil</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="../logout.php">Cerrar Sesión</a></li>
                         </ul>
