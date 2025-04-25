@@ -38,14 +38,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $mensaje_licencia = "";
                         
                         if (!empty($usuario['id_empresa'])) {
-                            $stmt = $conn->prepare("SELECT COUNT(*) FROM licencias 
-                                                WHERE id_empresa = ? AND estado = 'Activa' 
-                                                AND fecha_fin >= CURDATE()");
+                            // Modificación: Obtener solo la licencia más reciente para la empresa
+                            $stmt = $conn->prepare("SELECT * FROM licencias 
+                                                WHERE id_empresa = ? 
+                                                ORDER BY fecha_inicio DESC, id DESC 
+                                                LIMIT 1");
                             $stmt->execute([$usuario['id_empresa']]);
                             
-                            if ($stmt->fetchColumn() == 0) {
+                            if ($stmt->rowCount() > 0) {
+                                $licencia = $stmt->fetch(PDO::FETCH_ASSOC);
+                                
+                                // Verificar si la licencia más reciente está activa y no ha expirado
+                                if ($licencia['estado'] != 'Activa' || $licencia['fecha_fin'] < date('Y-m-d')) {
+                                    $licencia_valida = false;
+                                    $mensaje_licencia = "La licencia de su empresa ha expirado. Contacte con el proveedor.";
+                                }
+                            } else {
+                                // No hay licencias asignadas a esta empresa
                                 $licencia_valida = false;
-                                $mensaje_licencia = "La licencia de su empresa ha expirado. Contacte con el proveedor.";
+                                $mensaje_licencia = "Su empresa no tiene licencias asignadas. Contacte con el proveedor.";
                             }
                         }
                         
